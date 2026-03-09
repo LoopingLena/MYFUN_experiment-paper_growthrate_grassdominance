@@ -14,6 +14,9 @@ expdata_dna<- read.csv("expdata_dna.csv", header=T, sep=";", dec=",")
 expdata<- expdata[!expdata$gf=="monoculture",]
 expdata_dna<- expdata_dna[!expdata_dna$gf=="monoculture",]
 
+expdata$gf<- droplevels(expdata$gf)
+expdata_dna$gf<- droplevels(expdata_dna$gf)
+
 # 2. package upload ####
 library(vegan)
 library(ggplot2)
@@ -37,14 +40,57 @@ library(interactions)
 # We always model response variables with grass dominance and
 # treatment or AMF richness as interactive predictors. 
 
-# 4. Models growth rate ####
+# We also account for the potential influence of shifts in
+# soil nutrient availability, by including a aggregated soil variable
+# via principal component analysis (1st PC axis) summarising the
+# three measured variables ammonia, nitrate and phosphate in the soil,
+# at the moment of harvest.
 
-### 4.a. Models leaf growth rate ####
+# 4. Aggregation of soil nutrients (PCA) ####
+
+## 4.a. creation of soil PCAs ####
+names(expdata) 
+names(expdata_dna)
+
+nutr<- as.data.frame(cbind(expdata$NTR, expdata$AMO, expdata$POLSEN))
+nutr_dna<- as.data.frame(cbind(expdata_dna$NTR, expdata_dna$AMO, expdata_dna$POLSEN))
+
+soilPCA<- prcomp(nutr) 
+soilPCA_dna<- prcomp(nutr_dna)
+
+summary(soilPCA) #PC1 explain about 80% of variance in soil nutrients
+summary(soilPCA_dna) #PC1 explain about 80% of variance in soil nutrients
+
+expdata$soilPC1<- soilPCA$x[,1]
+expdata_dna$soilPC1<- soilPCA_dna$x[,1]
+
+save(expdata, file="expdata.RData")
+save(expdata_dna, file="expdata_dna.RData")
+
+## 4.b. visualisation of soil variation ####
+
+boxplot(expdata$NTR ~ expdata$treat*expdata$gf,
+        ylab="nitrate in µgrN-NO3/gr soil")
+boxplot(expdata$AMO ~ expdata$treat*expdata$gf,
+        ylab="ammonia in µgrN-NH4/gr soil")
+boxplot(expdata$POLSEN ~ expdata$treat*expdata$gf,
+        ylab="Olsen P in µgrP-PO4/gr soil")
+
+boxplot(expdata_dna$NTR ~ expdata_dna$treat*expdata_dna$gf,
+        ylab="nitrate in µgrN-NO3/gr soil")
+boxplot(expdata_dna$AMO ~ expdata_dna$treat*expdata_dna$gf,
+        ylab="ammonia in µgrN-NH4/gr soil")
+boxplot(expdata_dna$POLSEN ~ expdata_dna$treat*expdata_dna$gf,
+        ylab="Olsen P in µgrP-PO4/gr soil")
+
+# 5. Models growth rate ####
+
+### 5.a. Models leaf growth rate ####
 
 #### i) model description ####
 # no log transformation
-m_leaf_growthrate1<- lm(gr_leaf ~ treat*grassdom, data=expdata)
-m_leaf_growthrate2<- lm(gr_leaf ~ log(rarespecnb_amf+1)*grassdom, data=expdata_dna)
+m_leaf_growthrate1<- lm(gr_leaf ~ treat*grassdom+soilPC1, data=expdata)
+m_leaf_growthrate2<- lm(gr_leaf ~ log(rarespecnb_amf+1)*grassdom+soilPC1, data=expdata_dna)
 
 #### ii) model validation ####
 # model leaf growth rate & treatment
@@ -69,8 +115,8 @@ car::qqPlot(residuals(m_leaf_growthrate2), main="normality")
 
 #### iii) model adjustment ####
 # log transformation
-m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat*grassdom, data=expdata)
-m_leaf_growthrate2<- lm(log(gr_leaf+1) ~ log(rarespecnb_amf+1)*grassdom, data=expdata_dna)
+m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat*grassdom + soilPC1, data=expdata)
+m_leaf_growthrate2<- lm(log(gr_leaf+1) ~ log(rarespecnb_amf+1)*grassdom + soilPC1, data=expdata_dna)
 
 #### iv) adjusted model validation ####
 
@@ -82,7 +128,7 @@ plot(predict(m_leaf_growthrate1),residuals(m_leaf_growthrate1),
 car::qqPlot(residuals(m_leaf_growthrate1), main="normality")
 # aim: plots within the blue area on one line
 
-# results: now it looks good, and we can test the significances with ANOVA 
+# results: now it looks good, and we can test the significance with ANOVA 
 # Type III which can handle interactions
 
 
@@ -108,7 +154,7 @@ car::Anova(m_leaf_growthrate2, type="III") # interaction sig (p<0.1)
 
 # re-modelling of leaf growth rate*treatment model
 
-m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat+grassdom, data=expdata)
+m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat+grassdom+soilPC1, data=expdata)
 car::Anova(m_leaf_growthrate1, type="II")
 
 #direction of effects
@@ -116,12 +162,12 @@ summary(m_leaf_growthrate1)
 summary(m_leaf_growthrate2)
 
 
-### 4.b. Models root growth rate ####
+### 5.b. Models root growth rate ####
 
 #### i) model description ####
 # no log transformation
-m_root_growthrate1<- lm(gr_root ~ treat*grassdom, data=expdata)
-m_root_growthrate2<- lm(gr_root ~ log(rarespecnb_amf+1)*grassdom, data=expdata_dna)
+m_root_growthrate1<- lm(gr_root ~ treat*grassdom+soilPC1, data=expdata)
+m_root_growthrate2<- lm(gr_root ~ log(rarespecnb_amf+1)*grassdom+soilPC1, data=expdata_dna)
 
 #### ii) model validation ####
 # model leaf growth rate & treatment
@@ -146,8 +192,8 @@ car::qqPlot(residuals(m_root_growthrate2), main="normality")
 
 #### iii) model adjustment ####
 # log transformation
-m_root_growthrate1<- lm(log(gr_root+1) ~ treat*grassdom, data=expdata)
-m_root_growthrate2<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)*grassdom, data=expdata_dna)
+m_root_growthrate1<- lm(log(gr_root+1) ~ treat*grassdom+soilPC1, data=expdata)
+m_root_growthrate2<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)*grassdom+soilPC1, data=expdata_dna)
 
 #### iv) adjusted model validation ####
 
@@ -185,17 +231,17 @@ car::Anova(m_root_growthrate2, type="III") # interaction ns --> re-modelling
 
 # re-modelling of root growth rate models
 
-m_root_growthrate1<- lm(log(gr_root+1) ~ treat+grassdom, data=expdata)
+m_root_growthrate1<- lm(log(gr_root+1) ~ treat+grassdom+soilPC1, data=expdata)
 car::Anova(m_root_growthrate1, type="II")
 
-m_root_growthrate2<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)+grassdom, data=expdata_dna)
+m_root_growthrate2<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)+grassdom+soilPC1, data=expdata_dna)
 car::Anova(m_root_growthrate2, type="II")
 
 #direction of effects
-summary(m_leaf_growthrate1)
-summary(m_leaf_growthrate2)
+summary(m_root_growthrate1)
+summary(m_root_growthrate2)
 
-### 4.c. plotting results ####
+### 5.c. plotting results ####
 
 My_Theme = theme(
   axis.title.x = element_text(size = 14),
@@ -219,8 +265,8 @@ pleaf<- ggplot(expdata, aes(x=grassdom, y=gr_leaf, col=treat))+
   ylim(c(0,7))+
   theme_classic()+
   annotate("text", x=0, y=6, 
-           label= "Anova Type II (log(leaf growth rate+1) ~ treatment+prop. grasses):
-           \nn = 160\ntreatment: df = 1, F = 3.574, p = 0.061\nprop. grasses: df = 1, F = 11.514, p = 0.001",
+           label= "Anova Type II (log(leaf growth rate+1) ~ treatment+prop. grasses+soilPC1):
+           \nn = 160\ntreatment: df = 1, F = 6.156, p = 0.014\nprop. grasses: df = 1, F = 8.022, p = 0.005\nsoilPC1: df = 1, F = 12.019, p = 0.001",
            hjust=0, size=3) + 
   My_Theme
 
@@ -236,8 +282,8 @@ proot<- ggplot(expdata, aes(x=grassdom, y=gr_root, col=treat))+
   ylim(c(0,7))+
   theme_classic()+
   annotate("text", x=0, y=6, 
-           label= "Anova Type II (log(root growth rate+1) ~ treatment+prop. grasses):
-           \nn = 160\ntreatment: df = 1, F = 6.735, p = 0.010\nprop. grasses: df = 1, F = 1.866, p = 0.174",
+           label= "Anova Type II (log(root growth rate+1) ~ treatment+prop. grasses + soilPC1):
+           \nn = 160\ntreatment: df = 1, F = 8.793, p = 0.004\nprop. grasses: df = 1, F = 0.897, p = 0.345\nsoilPC1: df = 1, F = 5.367, p = 0.022",
            hjust=0, size=3) + 
   My_Theme
 
@@ -267,9 +313,9 @@ lamf_p<- interact_plot(m_leaf_growthrate2, pred = rarespecnb_amf,
 lamf_p
 
 lamf_p2<- lamf_p+
-  annotate("text", x=20, y=1.60, 
-           label= "Anova Type III (log(leaf growth rate+1) ~ log(AMF richness+1)*prop. grasses):
-           \nn = 80\nAMF richness: df = 1, F = 0.047, p = 0.829\nprop.grasses: df = 1, F = 7.198, p = 0.009\nAMF*grasses: df=1, F = 3.564, p = 0.063",
+  annotate("text", x=10, y=1.60, 
+           label= "Anova Type III\n(log(leaf growth rate+1) ~ log(AMF richness+1)*prop. grasses+soilPC1):
+           \nn = 80\nAMF richness: df = 1, F = 0.001, p = 0.977\nprop.grasses: df = 1, F = 4.595, p = 0.035\nAMF*grasses: df=1, F = 2.960, p = 0.089\nsoilPC1: df = 1, F = 8.342, p = 0.005",
            hjust=0, size=3)
 
 lamf_p2
@@ -288,9 +334,9 @@ ramf_p<- interact_plot(m_root_growthrate2, pred =
 ramf_p
 
 ramf_p2<- ramf_p+
-  annotate("text", x=20, y=1.55, 
-           label= "Anova Type II (log(root growth rate+1) ~ log(AMF richness+1)+prop. grasses):
-           \nn = 80\nAMF richness: df = 1, F = 8.810, p = 0.004\nprop.grasses: df = 1, F = 0.818, p = 0.369\n   ",
+  annotate("text", x=10, y=1.55, 
+           label= "Anova Type II\n(log(root growth rate+1) ~ log(AMF richness+1)+prop. grasses+soilPC1):
+           \nn = 80\nAMF richness: df = 1, F = 8.929, p = 0.004\nprop.grasses: df = 1, F = 0.312, p = 0.578\nsoilPC1: df = 1, F = 2.421, p = 0.124",
            hjust=0, size=3)
 
 ramf_p2
@@ -299,8 +345,8 @@ lamf_p2+ramf_p2 +
   plot_layout(guides = "collect")+
   plot_annotation(tag_levels = 'A')
 
-# 5. Models AMF richness ####
-## 5.a. Models AMF Treatment Effects ####
+# 6. Models AMF richness ####
+## 6.a. Models AMF Treatment Effects ####
 
 # we use rarefied richness where we control for 
 # differential sampling depth (nb of reads)
@@ -310,7 +356,7 @@ lamf_p2+ramf_p2 +
 
 #### i) model description ####
 
-mamf<- lm(rarespecnb_amf ~ treat*grassdom, data=expdata_dna)
+mamf<- lm(rarespecnb_amf ~ treat*grassdom+soilPC1, data=expdata_dna)
 
 #### ii) model validation ####
 par(mfrow=c(1,2))
@@ -324,7 +370,7 @@ car::qqPlot(residuals(mamf), main="normality")
 
 #### iii) model adjustment ####
 
-mamf<- lm(log(rarespecnb_amf+1) ~ treat*grassdom, data=expdata_dna)
+mamf<- lm(log(rarespecnb_amf+1) ~ treat*grassdom+soilPC1, data=expdata_dna)
 
 #### iv) adjusted model validation ####
 par(mfrow=c(1,2))
@@ -345,13 +391,13 @@ car::qqPlot(residuals(mamf), main="normality")
 
 car::Anova(mamf, type="III") # interaction not significant --> re-modelling
 
-mamf<- lm(log(rarespecnb_amf+1) ~ treat+grassdom, data=expdata_dna)
+mamf<- lm(log(rarespecnb_amf+1) ~ treat+grassdom+soilPC1, data=expdata_dna)
 car::Anova(mamf, type="II")
 
 #effect direction
 summary(mamf)
 
-## 5.b. plotting results ####
+## 6.b. plotting results ####
 
 expdata_dna$treatment<- expdata_dna$treat
 levels(expdata_dna$treatment)<- c("NM", "M")
@@ -363,8 +409,8 @@ pr<- ggplot(expdata_dna, aes(x=treatment, y=rarespecnb_amf, col=treatment))+
   ylab("rarefied AMF richness")+
   scale_color_manual(values = c("#d95f02", "#1b9e77"))+
   annotate("text", x=1.025, y=70, 
-           label= "Anova Type II (log(raref. AMF+1) ~ treatment+prop. grasses):
-           \nn = 80\ntreatment: df = 1, F = 7.319, p = 0.008\nprop. grasses: df = 1, F = 1.169, p = 0.187",
+           label= "Anova Type II (log(raref. AMF+1) ~ treatment+prop. grasses+soilPC1):
+           \nn = 80\ntreatment: df = 1, F = 7.778, p = 0.007\nprop. grasses: df = 1, F = 1.284, p = 0.261\nsoilPC1: df = 1, F = 0.508, p = 0.478",
            hjust=0, size=3.5) +
   annotate("text", x=1.5, y=40,
            label="**", hjust=0, size=8)+
