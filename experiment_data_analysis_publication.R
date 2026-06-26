@@ -24,6 +24,9 @@ expdata_dna<- expdata_dna[!expdata_dna$gf=="monoculture",]
 expdata$gf<- droplevels(expdata$gf)
 expdata_dna$gf<- droplevels(expdata_dna$gf)
 
+expdata$grassdom_fac<- factor(expdata$grassdom, ordered=T)
+expdata_dna$grassdom_fac<- factor(expdata_dna$grassdom, ordered=T)
+
 # 2. package upload ####
 library(vegan)
 library(ggplot2)
@@ -71,24 +74,34 @@ summary(soilPCA_dna) #PC1 explain about 80% of variance in soil nutrients
 expdata$soilPC1<- soilPCA$x[,1]
 expdata_dna$soilPC1<- soilPCA_dna$x[,1]
 
+expdata$treat<- as.factor(expdata$treat)
+expdata_dna$treat<- as.factor(expdata_dna$treat)
+
+levels(expdata$treat)
+levels(expdata$treat)<- c("fungal inoculum", "control inoculum")
+
+levels(expdata_dna$treat)
+levels(expdata_dna$treat)<- c("fungal inoculum", "control inoculum")
+
+
 save(expdata, file="expdata.RData")
 save(expdata_dna, file="expdata_dna.RData")
 
 ## 4.b. visualisation of soil variation ####
-
+par(mfrow=c(1,1))
 boxplot(expdata$NTR ~ expdata$treat*expdata$gf,
-        ylab="nitrate in µgrN-NO3/gr soil")
+        ylab="nitrate in µgrN-NO3/gr soil", col=c("royalblue", "grey"))
 boxplot(expdata$AMO ~ expdata$treat*expdata$gf,
-        ylab="ammonia in µgrN-NH4/gr soil")
+        ylab="ammonia in µgrN-NH4/gr soil", col=c("royalblue", "grey"))
 boxplot(expdata$POLSEN ~ expdata$treat*expdata$gf,
-        ylab="Olsen P in µgrP-PO4/gr soil")
+        ylab="Olsen P in µgrP-PO4/gr soil", col=c("royalblue", "grey"))
 
 boxplot(expdata_dna$NTR ~ expdata_dna$treat*expdata_dna$gf,
-        ylab="nitrate in µgrN-NO3/gr soil")
+        ylab="nitrate in µgrN-NO3/gr soil", col=c("royalblue", "grey"))
 boxplot(expdata_dna$AMO ~ expdata_dna$treat*expdata_dna$gf,
-        ylab="ammonia in µgrN-NH4/gr soil")
+        ylab="ammonia in µgrN-NH4/gr soil", col=c("royalblue", "grey"))
 boxplot(expdata_dna$POLSEN ~ expdata_dna$treat*expdata_dna$gf,
-        ylab="Olsen P in µgrP-PO4/gr soil")
+        ylab="Olsen P in µgrP-PO4/gr soil", col=c("royalblue", "grey"))
 
 # 5. Models growth rate ####
 
@@ -96,19 +109,7 @@ boxplot(expdata_dna$POLSEN ~ expdata_dna$treat*expdata_dna$gf,
 
 #### i) model description ####
 # no log transformation
-m_leaf_growthrate1<- lm(gr_leaf ~ treat*grassdom+soilPC1, data=expdata)
 m_leaf_growthrate2<- lm(gr_leaf ~ log(rarespecnb_amf+1)*grassdom+soilPC1, data=expdata_dna)
-
-#### ii) model validation ####
-# model leaf growth rate & treatment
-par(mfrow=c(1,2))
-plot(predict(m_leaf_growthrate1),residuals(m_leaf_growthrate1), 
-     main="variance homogeneity")
-#aim: chaotic point cloud, no triangle
-car::qqPlot(residuals(m_leaf_growthrate1), main="normality")
-#aim: plots within the blue area on one line
-
-#result: residuals show heterogeneity -> log transformation of response variable
 
 # model leaf growth rate & AMF richnes
 par(mfrow=c(1,2))
@@ -122,22 +123,9 @@ car::qqPlot(residuals(m_leaf_growthrate2), main="normality")
 
 #### iii) model adjustment ####
 # log transformation
-m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat*grassdom + soilPC1, data=expdata)
 m_leaf_growthrate2<- lm(log(gr_leaf+1) ~ log(rarespecnb_amf+1)*grassdom + soilPC1, data=expdata_dna)
 
 #### iv) adjusted model validation ####
-
-# model leaf growth rate & treatment
-par(mfrow=c(1,2))
-plot(predict(m_leaf_growthrate1),residuals(m_leaf_growthrate1), 
-     main="variance homogeneity")
-# aim: chaotic point cloud, no triangle
-car::qqPlot(residuals(m_leaf_growthrate1), main="normality")
-# aim: plots within the blue area on one line
-
-# results: now it looks good, and we can test the significance with ANOVA 
-# Type III which can handle interactions
-
 
 # model leaf growth rate & AMF richness
 par(mfrow=c(1,2))
@@ -156,42 +144,45 @@ car::qqPlot(residuals(m_leaf_growthrate2), main="normality")
 #        As type II Anova is more powerful, in case of non-sig. interactions
 #        re-modelling with only additive effects, re-testing with type II Anova.
 
-car::Anova(m_leaf_growthrate1, type="III") # interaction ns --> re-modelling
 car::Anova(m_leaf_growthrate2, type="III") # interaction sig (p<0.1)
 
-# re-modelling of leaf growth rate*treatment model
-
-m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat+grassdom+soilPC1, data=expdata)
-car::Anova(m_leaf_growthrate1, type="II")
-
 # direction of effects
-summary(m_leaf_growthrate1)
 summary(m_leaf_growthrate2)
 
 
-#### vi) AIC ####
-AIC(m_leaf_growthrate1)
-AIC(m_leaf_growthrate2)
+#### vi) model comparison ####
+# using proportion of grasses as ordered factor
+# in the final model
+# idea: seeing whether the patterns hold
+
+m_leaf_growthratefac<- lm(log(gr_leaf+1) ~ log(rarespecnb_amf+1)*grassdom_fac + soilPC1, data=expdata_dna)
+# model leaf growth rate & treatment
+par(mfrow=c(1,2))
+plot(predict(m_leaf_growthratefac),residuals(m_leaf_growthratefac), 
+     main="variance homogeneity")
+# aim: chaotic point cloud, no triangle
+car::qqPlot(residuals(m_leaf_growthratefac), main="normality")
+
+# significance testing
+car::Anova(m_leaf_growthratefac, type="III")
+car::Anova(m_leaf_growthrate2, type="III")
+
+# conclusion: pattern remain mostly the same,
+#             marg. sig. interaction of prop. grasses with AMF richness
+#             becomes non-significant. This likely 
+#             reflects the lower stat. power due to more
+#             factor levels when prop. grasses is a ordered factor.
+#             Prop. grasses remains as cont. variable in the 
+#             published analysis, yet weakness of 
+#             effect is highlighted.
 
 ### 5.b. Models root growth rate ####
 
 #### i) model description ####
 # no log transformation
-m_root_growthrate1<- lm(gr_root ~ treat*grassdom+soilPC1, data=expdata)
 m_root_growthrate2<- lm(gr_root ~ log(rarespecnb_amf+1)*grassdom+soilPC1, data=expdata_dna)
 
-#### ii) model validation ####
-# model leaf growth rate & treatment
-par(mfrow=c(1,2))
-plot(predict(m_root_growthrate1),residuals(m_root_growthrate1), 
-     main="variance homogeneity")
-#aim: chaotic point cloud, no triangle
-car::qqPlot(residuals(m_root_growthrate1), main="normality")
-#aim: plots within the blue area on one line
-
-#result: residuals show heterogeneity -> log transformation of response variable
-
-# model leaf growth rate & AMF richnes
+# model leaf growth rate & AMF richness
 par(mfrow=c(1,2))
 plot(predict(m_root_growthrate2),residuals(m_root_growthrate2), 
      main="variance homogeneity")
@@ -203,22 +194,9 @@ car::qqPlot(residuals(m_root_growthrate2), main="normality")
 
 #### iii) model adjustment ####
 # log transformation
-m_root_growthrate1<- lm(log(gr_root+1) ~ treat*grassdom+soilPC1, data=expdata)
 m_root_growthrate2<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)*grassdom+soilPC1, data=expdata_dna)
 
 #### iv) adjusted model validation ####
-
-# model leaf growth rate & treatment
-par(mfrow=c(1,2))
-plot(predict(m_root_growthrate1),residuals(m_root_growthrate1), 
-     main="variance homogeneity")
-# aim: chaotic point cloud, no triangle
-car::qqPlot(residuals(m_root_growthrate1), main="normality")
-# aim: plots within the blue area on one line
-
-# results: now it looks good, and we can test the significances with ANOVA 
-# Type III which can handle interactions
-
 
 # model leaf growth rate & AMF richness
 par(mfrow=c(1,2))
@@ -237,24 +215,35 @@ car::qqPlot(residuals(m_root_growthrate2), main="normality")
 #        As type II Anova is more powerful, in case of non-sig. interactions
 #        re-modelling with only additive effects, re-testing with type II Anova.
 
-car::Anova(m_root_growthrate1, type="III") # interaction ns --> re-modelling
 car::Anova(m_root_growthrate2, type="III") # interaction ns --> re-modelling
 
 # re-modelling of root growth rate models
-
-m_root_growthrate1<- lm(log(gr_root+1) ~ treat+grassdom+soilPC1, data=expdata)
-car::Anova(m_root_growthrate1, type="II")
 
 m_root_growthrate2<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)+grassdom+soilPC1, data=expdata_dna)
 car::Anova(m_root_growthrate2, type="II")
 
 #direction of effects
-summary(m_root_growthrate1)
 summary(m_root_growthrate2)
 
-#### vi) AIC ####
-AIC(m_root_growthrate1)
-AIC(m_root_growthrate2)
+#### vi) model comparison ####
+# using proportion of grasses as ordered factor
+# in the final model
+# idea: seeing whether the patterns hold
+
+m_root_growthratefac<- lm(log(gr_root+1) ~ log(rarespecnb_amf+1)+grassdom_fac+soilPC1, data=expdata_dna)
+
+# model leaf growth rate & treatment
+par(mfrow=c(1,2))
+plot(predict(m_root_growthratefac),residuals(m_root_growthratefac), 
+     main="variance homogeneity")
+# aim: chaotic point cloud, no triangle
+car::qqPlot(residuals(m_root_growthratefac), main="normality")
+
+# significance testing
+car::Anova(m_root_growthratefac, type="II")
+car::Anova(m_root_growthrate2, type="II")
+
+# conclusion: patterns stay the same, prop. grasses remains unimportant.
 
 ### 5.c. plotting results ####
 
@@ -264,7 +253,8 @@ My_Theme = theme(
   axis.title.y = element_text(size = 14),
   axis.text.y = element_text(size = 12),
   legend.text = element_text(size=12),
-  legend.title = element_text(size=14))
+  legend.title = element_text(size=14))+
+  theme_minimal()
 
 expdata$treat<- as.factor(expdata$treat)
 levels(expdata$treat)
