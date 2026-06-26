@@ -10,7 +10,14 @@
 expdata<- read.csv("expdata.csv", header=T, sep=";", dec=",")
 expdata_dna<- read.csv("expdata_dna.csv", header=T, sep=";", dec=",")
 
+#check if data has no NA - lines, otherwise remove them
+expdata<- expdata[1:256,1:16]
+expdata_dna<- expdata_dna[1:112, 1:18]
+
 #data prep - only mixtures
+expdata$gf<- as.factor(expdata$gf)
+expdata_dna$gf<- as.factor(expdata_dna$gf)
+
 expdata<- expdata[!expdata$gf=="monoculture",]
 expdata_dna<- expdata_dna[!expdata_dna$gf=="monoculture",]
 
@@ -157,10 +164,14 @@ car::Anova(m_leaf_growthrate2, type="III") # interaction sig (p<0.1)
 m_leaf_growthrate1<- lm(log(gr_leaf+1) ~ treat+grassdom+soilPC1, data=expdata)
 car::Anova(m_leaf_growthrate1, type="II")
 
-#direction of effects
+# direction of effects
 summary(m_leaf_growthrate1)
 summary(m_leaf_growthrate2)
 
+
+#### vi) AIC ####
+AIC(m_leaf_growthrate1)
+AIC(m_leaf_growthrate2)
 
 ### 5.b. Models root growth rate ####
 
@@ -241,6 +252,10 @@ car::Anova(m_root_growthrate2, type="II")
 summary(m_root_growthrate1)
 summary(m_root_growthrate2)
 
+#### vi) AIC ####
+AIC(m_root_growthrate1)
+AIC(m_root_growthrate2)
+
 ### 5.c. plotting results ####
 
 My_Theme = theme(
@@ -251,6 +266,9 @@ My_Theme = theme(
   legend.text = element_text(size=12),
   legend.title = element_text(size=14))
 
+expdata$treat<- as.factor(expdata$treat)
+levels(expdata$treat)
+levels(expdata$treat)<- c("fungal inoculum", "control inoculum")
 expdata$treatment<- expdata$treat
 levels(expdata$treatment)<- c("NM", "M")
 
@@ -261,13 +279,12 @@ pleaf<- ggplot(expdata, aes(x=grassdom, y=gr_leaf, col=treat))+
               method.args = list(family = gaussian(link = 'log')))+
   labs(colour = "treatment", x =" proportion of grasses (%)", 
        y="growth rate of leaf biomass (g increase March-June)" )+
-  scale_color_manual(values = c("#d95f02", "#1b9e77"))+
+  scale_color_manual(values = c("royalblue", "black"))+
   ylim(c(0,7))+
   theme_classic()+
   annotate("text", x=0, y=6, 
-           label= "Anova Type II (log(leaf growth rate+1) ~ treatment+prop. grasses+soilPC1):
-           \nn = 160\ntreatment: df = 1, F = 6.156, p = 0.014\nprop. grasses: df = 1, F = 8.022, p = 0.005\nsoilPC1: df = 1, F = 12.019, p = 0.001",
-           hjust=0, size=3) + 
+           label= "Anova:\ntreatment - p < 0.05\nprop. grasses - p < 0.05",
+           hjust=0, size=4) + 
   My_Theme
 
 pleaf
@@ -278,13 +295,12 @@ proot<- ggplot(expdata, aes(x=grassdom, y=gr_root, col=treat))+
               method.args = list(family = gaussian(link = 'log')))+
   labs(colour = "treatment", x =" proportion of grasses (%)", 
        y="growth rate of root biomass (g increase March-June)" )+
-  scale_color_manual(values = c("#d95f02", "#1b9e77"))+
+  scale_color_manual(values = c("royalblue", "black"))+
   ylim(c(0,7))+
   theme_classic()+
   annotate("text", x=0, y=6, 
-           label= "Anova Type II (log(root growth rate+1) ~ treatment+prop. grasses + soilPC1):
-           \nn = 160\ntreatment: df = 1, F = 8.793, p = 0.004\nprop. grasses: df = 1, F = 0.897, p = 0.345\nsoilPC1: df = 1, F = 5.367, p = 0.022",
-           hjust=0, size=3) + 
+           label= "Anova:\ntreatment - p < 0.05\nprop. grasses - n.s.",
+           hjust=0, size=4) + 
   My_Theme
 
 proot
@@ -314,9 +330,8 @@ lamf_p
 
 lamf_p2<- lamf_p+
   annotate("text", x=10, y=1.60, 
-           label= "Anova Type III\n(log(leaf growth rate+1) ~ log(AMF richness+1)*prop. grasses+soilPC1):
-           \nn = 80\nAMF richness: df = 1, F = 0.001, p = 0.977\nprop.grasses: df = 1, F = 4.595, p = 0.035\nAMF*grasses: df=1, F = 2.960, p = 0.089\nsoilPC1: df = 1, F = 8.342, p = 0.005",
-           hjust=0, size=3)
+           label= "Anova:\nAMF richness - n.s.\nprop.grasses - p < 0.05\nAMF*grasses - p < 0.1",
+           hjust=0, size=4)
 
 lamf_p2
 #anova results need to be added in pdf later
@@ -335,9 +350,8 @@ ramf_p
 
 ramf_p2<- ramf_p+
   annotate("text", x=10, y=1.55, 
-           label= "Anova Type II\n(log(root growth rate+1) ~ log(AMF richness+1)+prop. grasses+soilPC1):
-           \nn = 80\nAMF richness: df = 1, F = 8.929, p = 0.004\nprop.grasses: df = 1, F = 0.312, p = 0.578\nsoilPC1: df = 1, F = 2.421, p = 0.124",
-           hjust=0, size=3)
+           label= "Anova: \nAMF richness - p < 0.05\nprop.grasses - n.s.\nAMF*grasses - n.s.",
+           hjust=0, size=4)
 
 ramf_p2
 
@@ -397,22 +411,23 @@ car::Anova(mamf, type="II")
 #effect direction
 summary(mamf)
 
+
 ## 6.b. plotting results ####
 
 expdata_dna$treatment<- expdata_dna$treat
-levels(expdata_dna$treatment)<- c("NM", "M")
+expdata_dna$treatment<- as.factor(expdata_dna$treatment)
+levels(expdata_dna$treatment)<- c("fungal inoculum", "control inoculum")
 
 pr<- ggplot(expdata_dna, aes(x=treatment, y=rarespecnb_amf, col=treatment))+
   geom_boxplot()+
   theme_classic()+
   xlab("treatment")+
   ylab("rarefied AMF richness")+
-  scale_color_manual(values = c("#d95f02", "#1b9e77"))+
-  annotate("text", x=1.025, y=70, 
-           label= "Anova Type II (log(raref. AMF+1) ~ treatment+prop. grasses+soilPC1):
-           \nn = 80\ntreatment: df = 1, F = 7.778, p = 0.007\nprop. grasses: df = 1, F = 1.284, p = 0.261\nsoilPC1: df = 1, F = 0.508, p = 0.478",
-           hjust=0, size=3.5) +
-  annotate("text", x=1.5, y=40,
+  scale_color_manual(values = c("royalblue", "black"))+
+  annotate("text", x=0.5, y=70, 
+           label= "Anova: \ntreatment - p < 0.05\nprop. grasses - n.s.",
+           hjust=0, size=4) +
+  annotate("text", x= 1.5, y=40,
            label="**", hjust=0, size=8)+
   My_Theme
 
