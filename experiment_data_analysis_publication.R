@@ -49,6 +49,10 @@ library(interactions)
 
 # We always model response variables with grass dominance and
 # treatment or AMF richness as interactive predictors. 
+# As the inoculation control led to similar levels 
+# of AMF colonization, i.e. the treatment
+# did not establish the expected contrast,
+# models are focussing on AMF richness effects only. 
 
 # We also account for the potential influence of shifts in
 # soil nutrient availability, by including a aggregated soil variable
